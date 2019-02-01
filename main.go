@@ -127,7 +127,7 @@ func process(p payload) ([]byte, error) {
 	case "png":
 		err = png.Encode(&buf, img)
 	default:
-		return nil, fmt.Errorf("don't know what to do with format %s", format)
+		return nil, fmt.Errorf("don't know how to encode format %s", format)
 	}
 	return buf.Bytes(), err
 }
