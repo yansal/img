@@ -8,6 +8,7 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -21,26 +22,23 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	log.Fatal(http.ListenAndServe(":"+port, handleError(handler)))
+	log.Fatal(http.ListenAndServe(":"+port, &handler{}))
 }
 
-func handleError(h handlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		err := h(w, r)
-		if err == nil {
-			return
-		}
+type handler struct{}
 
-		herr, ok := err.(httpError)
-		if !ok {
-			log.Print(err)
-			herr = httpError{err: err, code: http.StatusInternalServerError}
-		}
-		http.Error(w, herr.Error(), herr.code)
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	err := h.serveHTTP(w, r)
+	if err == nil {
+		return
 	}
-}
 
-type handlerFunc func(w http.ResponseWriter, r *http.Request) error
+	herr, ok := err.(httpError)
+	if !ok {
+		herr = httpError{err: err, code: http.StatusInternalServerError}
+	}
+	http.Error(w, fmt.Sprintf("%+v", herr.Error()), herr.code)
+}
 
 type httpError struct {
 	err  error
@@ -49,11 +47,7 @@ type httpError struct {
 
 func (e httpError) Error() string { return e.err.Error() }
 
-var handler = func(w http.ResponseWriter, r *http.Request) error {
-	if err := r.ParseForm(); err != nil {
-		return err
-	}
-
+func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	payload, err := bind(r)
 	if err != nil {
 		return err
@@ -63,23 +57,27 @@ var handler = func(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+
 	w.Write(img)
 	return nil
 }
 
 type payload struct {
-	path          string
+	path, url     string
 	width, height int
 }
 
 func bind(r *http.Request) (payload, error) {
 	var p payload
 
-	path := r.FormValue("path")
-	if path == "" {
-		return p, httpError{err: errors.New("path is required"), code: http.StatusBadRequest}
+	p.path = r.FormValue("path")
+	p.url = r.FormValue("url")
+	if p.path == "" && p.url == "" {
+		return p, httpError{err: errors.New("path or url are required"), code: http.StatusBadRequest}
+	} else if p.path != "" && p.url != "" {
+		return p, httpError{err: errors.New("only one of path and url must be present"), code: http.StatusBadRequest}
 	}
-	p.path = path
+	// TODO: validate url?
 
 	s := r.FormValue("width")
 	if s != "" {
@@ -103,13 +101,21 @@ func bind(r *http.Request) (payload, error) {
 }
 
 func process(p payload) ([]byte, error) {
-	f, err := os.Open(p.path)
+	var (
+		rc  io.ReadCloser
+		err error
+	)
+	if p.path != "" {
+		rc, err = getpath(p.path)
+	} else if p.url != "" {
+		rc, err = geturl(p.url)
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer rc.Close()
 
-	img, format, err := image.Decode(f)
+	img, format, err := image.Decode(rc)
 	if err != nil {
 		return nil, err
 	}
@@ -130,4 +136,16 @@ func process(p payload) ([]byte, error) {
 		return nil, fmt.Errorf("don't know how to encode format %s", format)
 	}
 	return buf.Bytes(), err
+}
+
+func getpath(s string) (*os.File, error) {
+	return os.Open(s)
+}
+
+func geturl(s string) (io.ReadCloser, error) {
+	resp, err := http.Get(s)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
 }
