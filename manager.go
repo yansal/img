@@ -17,14 +17,19 @@ import (
 type manager struct{ storage storage }
 
 func (m *manager) resizeImage(p payload) ([]byte, error) {
-	b, err := m.storage.Get(p.hash())
-	if err != nil {
-		return nil, err
-	} else if b != nil {
-		return b, nil
+	if !p.nocache {
+		b, err := m.storage.Get(p.hash())
+		if err != nil {
+			return nil, err
+		} else if b != nil {
+			return b, nil
+		}
 	}
 
-	var rc io.ReadCloser
+	var (
+		rc  io.ReadCloser
+		err error
+	)
 	if p.path != "" {
 		rc, err = getpath(p.path)
 	} else if p.url != "" {
@@ -59,8 +64,11 @@ func (m *manager) resizeImage(p payload) ([]byte, error) {
 		return nil, err
 	}
 
-	b = buf.Bytes()
-	return b, m.storage.Set(p.hash(), b)
+	b := buf.Bytes()
+	if !p.nocache {
+		return b, m.storage.Set(p.hash(), b)
+	}
+	return b, nil
 }
 
 func getpath(s string) (*os.File, error) {

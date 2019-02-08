@@ -60,6 +60,7 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 type payload struct {
 	path, url     string
 	width, height int
+	nocache       bool
 }
 
 func (p payload) hash() string {
@@ -97,6 +98,8 @@ func bind(r *http.Request) (payload, error) {
 		}
 		p.height = height
 	}
+
+	p.nocache = r.FormValue("nocache") != ""
 
 	return p, nil
 }
