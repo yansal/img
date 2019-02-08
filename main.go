@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strconv"
 )
@@ -52,7 +53,7 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	img, err := h.m.resizeImage(payload)
+	img, err := h.m.process(r.Context(), payload)
 	if err != nil {
 		return err
 	}
