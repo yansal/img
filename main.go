@@ -64,9 +64,7 @@ type payload struct {
 }
 
 func (p payload) hash() string {
-	s := p.path + p.url + strconv.Itoa(p.width) + strconv.Itoa(p.height)
-	h := md5.Sum([]byte(s))
-	return hex.EncodeToString(h[:])
+	return hash(p.path + p.url + strconv.Itoa(p.width) + strconv.Itoa(p.height))
 }
 
 func bind(r *http.Request) (payload, error) {
@@ -102,4 +100,9 @@ func bind(r *http.Request) (payload, error) {
 	p.nocache = r.FormValue("nocache") != ""
 
 	return p, nil
+}
+
+func hash(s string) string {
+	h := md5.Sum([]byte(s))
+	return hex.EncodeToString(h[:])
 }

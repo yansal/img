@@ -7,9 +7,8 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
-	"io"
+	"io/ioutil"
 	"net/http"
-	"os"
 
 	"github.com/disintegration/imaging"
 )
@@ -26,21 +25,7 @@ func (m *manager) resizeImage(p payload) ([]byte, error) {
 		}
 	}
 
-	var (
-		rc  io.ReadCloser
-		err error
-	)
-	if p.path != "" {
-		rc, err = getpath(p.path)
-	} else if p.url != "" {
-		rc, err = geturl(p.url)
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-
-	img, format, err := image.Decode(rc)
+	img, format, err := m.decodeImage(p)
 	if err != nil {
 		return nil, err
 	}
@@ -71,14 +56,45 @@ func (m *manager) resizeImage(p payload) ([]byte, error) {
 	return b, nil
 }
 
-func getpath(s string) (*os.File, error) {
-	return os.Open(s)
+func (m *manager) decodeImage(p payload) (image.Image, string, error) {
+	var (
+		b   []byte
+		err error
+	)
+	if p.path != "" {
+		b, err = ioutil.ReadFile(p.path)
+	} else if p.url != "" {
+		b, err = m.geturl(p.url, p.nocache)
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	return image.Decode(bytes.NewReader(b))
 }
 
-func geturl(s string) (io.ReadCloser, error) {
-	resp, err := http.Get(s)
+func (m *manager) geturl(url string, nocache bool) ([]byte, error) {
+	if !nocache {
+		b, err := m.storage.Get(hash(url))
+		if err != nil {
+			return nil, err
+		} else if b != nil {
+			return b, nil
+		}
+	}
+
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
 	}
-	return resp.Body, nil
+	defer resp.Body.Close()
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if !nocache {
+		return b, m.storage.Set(hash(url), b)
+	}
+	return b, nil
 }
