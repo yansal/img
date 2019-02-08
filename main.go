@@ -16,8 +16,12 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	h := &handler{m: manager{storage: &local{}}}
-	log.Fatal(http.ListenAndServe(":"+port, h))
+
+	http.Handle("/", &handler{m: manager{
+		cache:   os.Getenv("NOCACHE") == "",
+		storage: &local{},
+	}})
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
 type handler struct{ m manager }
@@ -60,7 +64,7 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 type payload struct {
 	path, url     string
 	width, height int
-	nocache       bool
+	cache         bool
 }
 
 func (p payload) hash() string {
@@ -97,7 +101,7 @@ func bind(r *http.Request) (payload, error) {
 		p.height = height
 	}
 
-	p.nocache = r.FormValue("nocache") != ""
+	p.cache = r.FormValue("nocache") == ""
 
 	return p, nil
 }

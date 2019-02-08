@@ -13,10 +13,13 @@ import (
 	"github.com/disintegration/imaging"
 )
 
-type manager struct{ storage storage }
+type manager struct {
+	cache   bool
+	storage storage
+}
 
 func (m *manager) resizeImage(p payload) ([]byte, error) {
-	if !p.nocache {
+	if m.cache && p.cache {
 		b, err := m.storage.Get(p.hash())
 		if err != nil {
 			return nil, err
@@ -50,7 +53,7 @@ func (m *manager) resizeImage(p payload) ([]byte, error) {
 	}
 
 	b := buf.Bytes()
-	if !p.nocache {
+	if m.cache && p.cache {
 		return b, m.storage.Set(p.hash(), b)
 	}
 	return b, nil
@@ -64,7 +67,7 @@ func (m *manager) decodeImage(p payload) (image.Image, string, error) {
 	if p.path != "" {
 		b, err = ioutil.ReadFile(p.path)
 	} else if p.url != "" {
-		b, err = m.geturl(p.url, p.nocache)
+		b, err = m.geturl(p.url, p.cache)
 	}
 	if err != nil {
 		return nil, "", err
@@ -72,8 +75,8 @@ func (m *manager) decodeImage(p payload) (image.Image, string, error) {
 	return image.Decode(bytes.NewReader(b))
 }
 
-func (m *manager) geturl(url string, nocache bool) ([]byte, error) {
-	if !nocache {
+func (m *manager) geturl(url string, cache bool) ([]byte, error) {
+	if m.cache && cache {
 		b, err := m.storage.Get(hash(url))
 		if err != nil {
 			return nil, err
@@ -93,7 +96,7 @@ func (m *manager) geturl(url string, nocache bool) ([]byte, error) {
 		return nil, err
 	}
 
-	if !nocache {
+	if m.cache && cache {
 		return b, m.storage.Set(hash(url), b)
 	}
 	return b, nil
