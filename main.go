@@ -19,8 +19,12 @@ func main() {
 	}
 
 	http.Handle("/", &handler{m: manager{
-		cache:   os.Getenv("NOCACHE") == "",
-		storage: &local{},
+		cache: os.Getenv("NOCACHE") == "",
+		storage: &redisS3{
+			redis:  newredis(),
+			s3:     news3(),
+			bucket: os.Getenv("S3BUCKET"),
+		},
 	}})
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
