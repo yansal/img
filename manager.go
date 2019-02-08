@@ -90,8 +90,11 @@ func (m *manager) geturl(ctx context.Context, url string, cache bool) ([]byte, e
 		}
 	}
 
-	// TODO: cancel request when ctx is canceled
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
