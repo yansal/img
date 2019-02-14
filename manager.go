@@ -13,11 +13,12 @@ import (
 	"runtime/trace"
 
 	"github.com/disintegration/imaging"
+	"github.com/yansal/img/storage"
 )
 
 type manager struct {
 	cache   bool
-	storage storage
+	storage storage.Storage
 }
 
 func (m *manager) process(ctx context.Context, p payload) ([]byte, error) {

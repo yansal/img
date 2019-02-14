@@ -10,22 +10,31 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"strconv"
+
+	"github.com/yansal/img/storage/backends/local"
+	"github.com/yansal/img/storage/backends/s3"
 )
 
 func main() {
+	m := manager{cache: os.Getenv("NOCACHE") == ""}
+
+	bucket := os.Getenv("S3BUCKET")
+	if bucket != "" {
+		var err error
+		m.storage, err = s3.New(bucket)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		m.storage = &local.Storage{}
+	}
+
+	http.Handle("/", &handler{m: m})
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-
-	http.Handle("/", &handler{m: manager{
-		cache: os.Getenv("NOCACHE") == "",
-		storage: &redisS3{
-			redis:  newredis(),
-			s3:     news3(),
-			bucket: os.Getenv("S3BUCKET"),
-		},
-	}})
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
