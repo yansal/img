@@ -30,6 +30,7 @@ func main() {
 	}
 
 	http.Handle("/", &handler{m: m})
+	http.Handle("/favicon.ico", http.NotFoundHandler())
 
 	port := os.Getenv("PORT")
 	if port == "" {
