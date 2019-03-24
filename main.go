@@ -7,11 +7,13 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"runtime"
 	"strconv"
 
 	"github.com/yansal/img/storage"
 	"github.com/yansal/img/storage/backends/local"
 	"github.com/yansal/img/storage/backends/s3"
+	"golang.org/x/sync/semaphore"
 )
 
 func main() {
@@ -26,7 +28,10 @@ func main() {
 		storage = &local.Storage{}
 	}
 
-	http.Handle("/", &handler{m: &manager{storage: storage}})
+	http.Handle("/", &handler{
+		m: &manager{storage: storage},
+		s: semaphore.NewWeighted(int64(runtime.NumCPU())),
+	})
 	http.Handle("/favicon.ico", http.NotFoundHandler())
 
 	port := os.Getenv("PORT")
@@ -36,7 +41,10 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-type handler struct{ m *manager }
+type handler struct {
+	m *manager
+	s *semaphore.Weighted
+}
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := h.serveHTTP(w, r)
@@ -64,7 +72,11 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	img, err := h.m.process(r.Context(), payload)
+	ctx := r.Context()
+	h.s.Acquire(ctx, 1)
+	defer h.s.Release(1)
+
+	img, err := h.m.process(ctx, payload)
 	if err != nil {
 		return err
 	}
