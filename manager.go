@@ -17,22 +17,12 @@ import (
 )
 
 type manager struct {
-	cache   bool
 	storage storage.Storage
 }
 
 func (m *manager) process(ctx context.Context, p payload) ([]byte, error) {
 	ctx, task := trace.NewTask(ctx, "process")
 	defer task.End()
-
-	if m.cache && p.cache {
-		b, err := m.getcache(ctx, p.hash())
-		if err != nil {
-			return nil, err
-		} else if b != nil {
-			return b, nil
-		}
-	}
 
 	img, format, err := m.get(ctx, p)
 	if err != nil {
@@ -43,20 +33,7 @@ func (m *manager) process(ctx context.Context, p payload) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if m.cache && p.cache {
-		return b, m.setcache(ctx, p.hash(), b)
-	}
 	return b, nil
-}
-
-func (m *manager) getcache(ctx context.Context, key string) ([]byte, error) {
-	defer trace.StartRegion(ctx, "getcache").End()
-	return m.storage.Get(key)
-}
-
-func (m *manager) setcache(ctx context.Context, key string, value []byte) error {
-	defer trace.StartRegion(ctx, "setcache").End()
-	return m.storage.Set(key, value)
 }
 
 func (m *manager) get(ctx context.Context, p payload) (image.Image, string, error) {
@@ -67,9 +44,9 @@ func (m *manager) get(ctx context.Context, p payload) (image.Image, string, erro
 		err error
 	)
 	if p.path != "" {
-		b, err = ioutil.ReadFile(p.path)
+		b, err = m.storage.Get(p.path)
 	} else if p.url != "" {
-		b, err = m.geturl(ctx, p.url, p.cache)
+		b, err = m.geturl(ctx, p.url)
 	}
 	if err != nil {
 		return nil, "", err
@@ -79,17 +56,8 @@ func (m *manager) get(ctx context.Context, p payload) (image.Image, string, erro
 	return image.Decode(bytes.NewReader(b))
 }
 
-func (m *manager) geturl(ctx context.Context, url string, cache bool) ([]byte, error) {
+func (m *manager) geturl(ctx context.Context, url string) ([]byte, error) {
 	defer trace.StartRegion(ctx, "geturl").End()
-
-	if m.cache && cache {
-		b, err := m.getcache(ctx, hash(url))
-		if err != nil {
-			return nil, err
-		} else if b != nil {
-			return b, nil
-		}
-	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -104,10 +72,6 @@ func (m *manager) geturl(ctx context.Context, url string, cache bool) ([]byte, e
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
-	}
-
-	if m.cache && cache {
-		return b, m.setcache(ctx, hash(url), b)
 	}
 	return b, nil
 }

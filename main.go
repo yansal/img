@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -11,25 +9,24 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/yansal/img/storage"
 	"github.com/yansal/img/storage/backends/local"
 	"github.com/yansal/img/storage/backends/s3"
 )
 
 func main() {
-	m := manager{cache: os.Getenv("NOCACHE") == ""}
-
-	bucket := os.Getenv("S3BUCKET")
-	if bucket != "" {
+	var storage storage.Storage
+	if bucket := os.Getenv("S3BUCKET"); bucket != "" {
 		var err error
-		m.storage, err = s3.New(bucket)
+		storage, err = s3.New(bucket)
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		m.storage = &local.Storage{}
+		storage = &local.Storage{}
 	}
 
-	http.Handle("/", &handler{m: m})
+	http.Handle("/", &handler{m: &manager{storage: storage}})
 	http.Handle("/favicon.ico", http.NotFoundHandler())
 
 	port := os.Getenv("PORT")
@@ -39,7 +36,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-type handler struct{ m manager }
+type handler struct{ m *manager }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err := h.serveHTTP(w, r)
@@ -79,11 +76,6 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 type payload struct {
 	path, url     string
 	width, height int
-	cache         bool
-}
-
-func (p payload) hash() string {
-	return hash(p.path + p.url + strconv.Itoa(p.width) + strconv.Itoa(p.height))
 }
 
 func bind(r *http.Request) (payload, error) {
@@ -100,7 +92,7 @@ func bind(r *http.Request) (payload, error) {
 
 	s := r.FormValue("width")
 	if s != "" {
-		width, err := strconv.Atoi(r.FormValue("width"))
+		width, err := strconv.Atoi(s)
 		if err != nil {
 			return p, httpError{err: err, code: http.StatusBadRequest}
 		}
@@ -109,19 +101,12 @@ func bind(r *http.Request) (payload, error) {
 
 	s = r.FormValue("height")
 	if s != "" {
-		height, err := strconv.Atoi(r.FormValue("height"))
+		height, err := strconv.Atoi(s)
 		if err != nil {
 			return p, httpError{err: err, code: http.StatusBadRequest}
 		}
 		p.height = height
 	}
 
-	p.cache = r.FormValue("nocache") == ""
-
 	return p, nil
-}
-
-func hash(s string) string {
-	h := md5.Sum([]byte(s))
-	return hex.EncodeToString(h[:])
 }
