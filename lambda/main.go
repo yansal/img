@@ -8,20 +8,11 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/yansal/img/manager"
 	"github.com/yansal/img/storage/backends/s3"
 )
-
-type apiGatewayRequest struct {
-	QueryStringParameters map[string]string
-}
-
-type apiGatewayResponse struct {
-	Body            string            `json:"body"`
-	Headers         map[string]string `json:"headers"`
-	IsBase64Encoded bool              `json:"isBase64Encoded"`
-}
 
 func newPayload(params map[string]string) (manager.Payload, error) {
 	var payload manager.Payload
@@ -51,7 +42,7 @@ func newPayload(params map[string]string) (manager.Payload, error) {
 	return payload, nil
 }
 
-func HandleRequest(ctx context.Context, req apiGatewayRequest) (*apiGatewayResponse, error) {
+func HandleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
 	bucket := os.Getenv("S3BUCKET")
 	if bucket == "" {
 		return nil, errors.New("S3BUCKET env is required")
@@ -71,12 +62,13 @@ func HandleRequest(ctx context.Context, req apiGatewayRequest) (*apiGatewayRespo
 		return nil, err
 	}
 
-	return &apiGatewayResponse{
+	return &events.APIGatewayProxyResponse{
 		Body: base64.StdEncoding.EncodeToString(b),
 		Headers: map[string]string{
 			"Content-Type": http.DetectContentType(b),
 		},
 		IsBase64Encoded: true,
+		StatusCode:      http.StatusOK,
 	}, nil
 }
 
