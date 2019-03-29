@@ -63,6 +63,9 @@ func HandleRequest(ctx context.Context, req apiGatewayRequest) (*apiGatewayRespo
 	}
 
 	payload, err := newPayload(req.QueryStringParameters)
+	if err != nil {
+		return nil, err
+	}
 	b, err := img.NewProcessor(storage).Process(ctx, payload)
 	if err != nil {
 		return nil, err
