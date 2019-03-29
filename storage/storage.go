@@ -1,5 +1,7 @@
 package storage
 
+import "context"
+
 type Storage interface {
-	Get(path string) ([]byte, error)
+	Get(ctx context.Context, path string) ([]byte, error)
 }

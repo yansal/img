@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"context"
 	"io/ioutil"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -25,8 +26,8 @@ func New(bucket string) (*Storage, error) {
 	}, nil
 }
 
-func (s *Storage) Get(path string) ([]byte, error) {
-	out, err := s.s3.GetObject(&s3.GetObjectInput{
+func (s *Storage) Get(ctx context.Context, path string) ([]byte, error) {
+	out, err := s.s3.GetObjectWithContext(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
 	})

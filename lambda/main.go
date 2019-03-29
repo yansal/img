@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/yansal/img/img"
+	"github.com/yansal/img/manager"
 	"github.com/yansal/img/storage/backends/s3"
 )
 
@@ -23,8 +23,8 @@ type apiGatewayResponse struct {
 	IsBase64Encoded bool              `json:"isBase64Encoded"`
 }
 
-func newPayload(params map[string]string) (img.Payload, error) {
-	var payload img.Payload
+func newPayload(params map[string]string) (manager.Payload, error) {
+	var payload manager.Payload
 	path := params["path"]
 	if path == "" {
 		return payload, errors.New("path is required")
@@ -66,7 +66,7 @@ func HandleRequest(ctx context.Context, req apiGatewayRequest) (*apiGatewayRespo
 	if err != nil {
 		return nil, err
 	}
-	b, err := img.NewProcessor(storage).Process(ctx, payload)
+	b, err := manager.New(storage).Process(ctx, payload)
 	if err != nil {
 		return nil, err
 	}

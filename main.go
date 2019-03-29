@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/yansal/img/img"
+	"github.com/yansal/img/manager"
 	"github.com/yansal/img/storage"
 	"github.com/yansal/img/storage/backends/local"
 	"github.com/yansal/img/storage/backends/s3"
@@ -30,7 +30,7 @@ func main() {
 	}
 
 	http.Handle("/", &handler{
-		p: img.NewProcessor(storage),
+		m: manager.New(storage),
 		s: semaphore.NewWeighted(int64(runtime.NumCPU())),
 	})
 	http.Handle("/favicon.ico", http.NotFoundHandler())
@@ -43,7 +43,7 @@ func main() {
 }
 
 type handler struct {
-	p *img.Processor
+	m *manager.Manager
 	s *semaphore.Weighted
 }
 
@@ -77,7 +77,7 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	h.s.Acquire(ctx, 1)
 	defer h.s.Release(1)
 
-	img, err := h.p.Process(ctx, payload)
+	img, err := h.m.Process(ctx, payload)
 	if err != nil {
 		return err
 	}
@@ -86,8 +86,8 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func bind(r *http.Request) (img.Payload, error) {
-	var p img.Payload
+func bind(r *http.Request) (manager.Payload, error) {
+	var p manager.Payload
 
 	p.Path = r.FormValue("path")
 	p.URL = r.FormValue("url")
