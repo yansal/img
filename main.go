@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 
+	"github.com/yansal/img/img"
 	"github.com/yansal/img/storage"
 	"github.com/yansal/img/storage/backends/local"
 	"github.com/yansal/img/storage/backends/s3"
@@ -29,7 +30,7 @@ func main() {
 	}
 
 	http.Handle("/", &handler{
-		m: &manager{storage: storage},
+		p: img.NewProcessor(storage),
 		s: semaphore.NewWeighted(int64(runtime.NumCPU())),
 	})
 	http.Handle("/favicon.ico", http.NotFoundHandler())
@@ -42,7 +43,7 @@ func main() {
 }
 
 type handler struct {
-	m *manager
+	p *img.Processor
 	s *semaphore.Weighted
 }
 
@@ -76,7 +77,7 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	h.s.Acquire(ctx, 1)
 	defer h.s.Release(1)
 
-	img, err := h.m.process(ctx, payload)
+	img, err := h.p.Process(ctx, payload)
 	if err != nil {
 		return err
 	}
@@ -85,19 +86,14 @@ func (h *handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-type payload struct {
-	path, url     string
-	width, height int
-}
+func bind(r *http.Request) (img.Payload, error) {
+	var p img.Payload
 
-func bind(r *http.Request) (payload, error) {
-	var p payload
-
-	p.path = r.FormValue("path")
-	p.url = r.FormValue("url")
-	if p.path == "" && p.url == "" {
+	p.Path = r.FormValue("path")
+	p.URL = r.FormValue("url")
+	if p.Path == "" && p.URL == "" {
 		return p, httpError{err: errors.New("path or url are required"), code: http.StatusBadRequest}
-	} else if p.path != "" && p.url != "" {
+	} else if p.Path != "" && p.URL != "" {
 		return p, httpError{err: errors.New("only one of path and url must be present"), code: http.StatusBadRequest}
 	}
 	// TODO: validate url?
@@ -108,7 +104,7 @@ func bind(r *http.Request) (payload, error) {
 		if err != nil {
 			return p, httpError{err: err, code: http.StatusBadRequest}
 		}
-		p.width = width
+		p.Width = width
 	}
 
 	s = r.FormValue("height")
@@ -117,7 +113,7 @@ func bind(r *http.Request) (payload, error) {
 		if err != nil {
 			return p, httpError{err: err, code: http.StatusBadRequest}
 		}
-		p.height = height
+		p.Height = height
 	}
 
 	return p, nil

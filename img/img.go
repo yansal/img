@@ -1,4 +1,4 @@
-package main
+package img
 
 import (
 	"bytes"
@@ -16,37 +16,38 @@ import (
 	"github.com/yansal/img/storage"
 )
 
-type manager struct {
-	storage storage.Storage
+func NewProcessor(storage storage.Storage) *Processor {
+	return &Processor{storage: storage}
 }
 
-func (m *manager) process(ctx context.Context, p payload) ([]byte, error) {
+type Processor struct{ storage storage.Storage }
+
+func (p *Processor) Process(ctx context.Context, payload Payload) ([]byte, error) {
 	ctx, task := trace.NewTask(ctx, "process")
 	defer task.End()
 
-	img, format, err := m.get(ctx, p)
+	img, format, err := p.get(ctx, payload)
 	if err != nil {
 		return nil, err
 	}
-
-	b, err := m.resize(ctx, img, format, p.width, p.height)
+	b, err := p.resize(ctx, img, format, payload.Width, payload.Height)
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-func (m *manager) get(ctx context.Context, p payload) (image.Image, string, error) {
+func (p *Processor) get(ctx context.Context, payload Payload) (image.Image, string, error) {
 	defer trace.StartRegion(ctx, "get").End()
 
 	var (
 		b   []byte
 		err error
 	)
-	if p.path != "" {
-		b, err = m.storage.Get(p.path)
-	} else if p.url != "" {
-		b, err = m.geturl(ctx, p.url)
+	if payload.Path != "" {
+		b, err = p.storage.Get(payload.Path)
+	} else if payload.URL != "" {
+		b, err = p.geturl(ctx, payload.URL)
 	}
 	if err != nil {
 		return nil, "", err
@@ -56,7 +57,7 @@ func (m *manager) get(ctx context.Context, p payload) (image.Image, string, erro
 	return image.Decode(bytes.NewReader(b))
 }
 
-func (m *manager) geturl(ctx context.Context, url string) ([]byte, error) {
+func (p *Processor) geturl(ctx context.Context, url string) ([]byte, error) {
 	defer trace.StartRegion(ctx, "geturl").End()
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -76,7 +77,7 @@ func (m *manager) geturl(ctx context.Context, url string) ([]byte, error) {
 	return b, nil
 }
 
-func (m *manager) resize(ctx context.Context, img image.Image, format string, width, height int) ([]byte, error) {
+func (p *Processor) resize(ctx context.Context, img image.Image, format string, width, height int) ([]byte, error) {
 	defer trace.StartRegion(ctx, "resize").End()
 
 	if width != 0 || height != 0 {

@@ -18,6 +18,7 @@ func New(bucket string) (*Storage, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Storage{
 		bucket: bucket,
 		s3:     s3.New(s),
